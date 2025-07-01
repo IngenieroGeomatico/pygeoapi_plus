@@ -1,3 +1,3 @@
-[submodule "pygeoapi/pygeoapy_complementos"]
-	path = pygeoapi/pygeoapy_complementos
+[submodule "pygeoapi/pygeoapi_complementos"]
+	path = pygeoapi/pygeoapi_complementos
 	url = https://github.com/IngenieroGeomatico/pygeoapi_complementos
