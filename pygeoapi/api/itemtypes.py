@@ -879,10 +879,13 @@ def get_collection_item(api: API, request: APIRequest,
 
     try:
         LOGGER.debug(f'Fetching id {identifier}')
+        # Aure: se añaden argumentos para obtenerlos desde la función get() del proveedor
+        get_params = request._args.dict()
         content = p.get(
             identifier,
             language=prv_locale,
             crs_transform_spec=crs_transform_spec,
+            **get_params 
         )
     except ProviderGenericError as err:
         return api.get_exception(
