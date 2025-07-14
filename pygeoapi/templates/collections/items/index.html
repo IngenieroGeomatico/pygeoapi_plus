@@ -111,12 +111,8 @@
                   </td>
                 {% elif data.get('title_field') %}
                   {% set title_field = data.title_field %}
-                  <!-- Aure: se añade un condicional para propagar el parámetro get __layer__ -->
-                  {% set layer_param = data.get('name') %}
-                  {% set __layer__ = data.get('__layer__') %}
                   <td data-label="{{ title_field }}">
-                      <!-- <a href="{{ data.items_path }}/{{ ft['id'] }}" title="{{ ft.properties.get(title_field) }}"> -->
-                      <a href="{{ data.items_path }}/{{ ft['id'] }}{% if __layer__ %}?__layer__={{ layer_param }}{% endif %}" title="{{ ft.properties.get(title_field) }}">
+                      <a href="{{ data.items_path }}/{{ ft['id'] }}" title="{{ ft.properties.get(title_field) }}">
                       {{ ft.properties.get(title_field) | string | truncate( 35 ) }}
                     </a>
                   </td>
