@@ -40,6 +40,9 @@ from typing import Optional, Union
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
 
+# Aure: Se añade la importación de los decoradores
+from django.views.decorators.csrf import csrf_exempt
+
 from pygeoapi.api import API, APIRequest, apply_gzip
 import pygeoapi.api as core_api
 import pygeoapi.api.coverages as coverages_api
@@ -342,7 +345,8 @@ def processes(request: HttpRequest,
     return execute_from_django(processes_api.describe_processes, request,
                                process_id)
 
-
+# Aure:
+@csrf_exempt  # <--- esto desactiva CSRF para esta vista
 def process_execution(request: HttpRequest, process_id: str) -> HttpResponse:
     """
     OGC API - Processes execution endpoint
