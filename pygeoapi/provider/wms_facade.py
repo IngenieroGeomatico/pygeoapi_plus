@@ -79,7 +79,6 @@ class WMSFacadeProvider(BaseProvider):
         :param format_: Output format (default is `png`)
         :param transparent: Apply transparency to map (default is `True`)
 
-
         :returns: `bytes` of map image
         """
 
