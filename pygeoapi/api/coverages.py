@@ -80,6 +80,10 @@ def get_collection_coverage(
     """
 
     query_args = {}
+    
+    # Aure: se pasan todos los parámetros GET
+    query_args = request.params.dict()
+    
     format_ = request.format or F_JSON
 
     # Force response content type and language (en-US only) headers
