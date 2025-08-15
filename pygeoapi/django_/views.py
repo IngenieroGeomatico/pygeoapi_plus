@@ -54,7 +54,7 @@ import pygeoapi.api.stac as stac_api
 import pygeoapi.api.tiles as tiles_api
 
 if settings.PYGEOAPI_CONFIG['server'].get('admin'):
-    import pygeoapi.admin as admin_api
+    import pygeoapi.api.admin as admin_api
 
 
 def landing_page(request: HttpRequest) -> HttpResponse:
