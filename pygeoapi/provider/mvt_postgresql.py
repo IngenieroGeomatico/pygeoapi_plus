@@ -99,6 +99,11 @@ class MVTPostgreSQLProvider(BaseMVTProvider, PostgreSQLProvider):
         return self.table
 
     def get_tiling_schemes(self):
+        """
+        Only WebMercatorQuad and WorldCRS84Quad tiling schemes
+        are supported for PostgreSQL
+        """
+
         return [
             TileMatrixSetEnum.WEBMERCATORQUAD.value,
             TileMatrixSetEnum.WORLDCRS84QUAD.value
@@ -146,7 +151,7 @@ class MVTPostgreSQLProvider(BaseMVTProvider, PostgreSQLProvider):
         ]
         if not self.is_in_limits(tileset_schema, z, x, y):
             LOGGER.warning(f'Tile {z}/{x}/{y} not found')
-            return ProviderTileNotFoundError
+            raise ProviderTileNotFoundError
 
         storage_srid = get_crs_from_uri(self.storage_crs).to_string()
         out_srid = get_crs_from_uri(tileset_schema.crs).to_string()
