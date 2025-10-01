@@ -17,11 +17,11 @@ on:
 
 jobs:
   main:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         include:
-          - python-version: '3.10'
+          - python-version: '3.12'
     env:
       PYGEOAPI_CONFIG: "$(pwd)/pygeoapi-config.yml"
 
@@ -103,18 +103,22 @@ jobs:
         packages: libsqlite3-mod-spatialite
         version: 4.3.0a-6build1
     - name: Use ubuntuGIS unstable ppa
-      run: sudo add-apt-repository ppa:ubuntugis/ubuntugis-unstable && sudo apt update
+      run: |
+        sudo add-apt-repository ppa:ubuntugis/ubuntugis-unstable
+        sudo apt update
+        sudo apt-get install gdal-bin libgdal-dev -y
       shell: bash
-    - name: Install GDAL with Python bindings
-      uses: awalsh128/cache-apt-pkgs-action@v1.4.3
-      with:
-        packages: gdal-bin libgdal-dev
-        version: 3.8.4
+#    - name: Install GDAL with Python bindings
+#      uses: awalsh128/cache-apt-pkgs-action@v1.4.3
+#      with:
+#        packages: gdal-bin libgdal-dev
+#        version: 3.11.3
     - name: Install and run Oracle
       run: |
         docker run -d --name oracledb -e ORACLE_PWD=oracle -v ${{ github.workspace }}/tests/data/oracle/init-db:/opt/oracle/scripts/startup -p 1521:1521 container-registry.oracle.com/database/express:21.3.0-xe
     - name: Install requirements 📦
       run: |
+        pip3 install setuptools
         pip3 install -r requirements.txt
         pip3 install -r requirements-admin.txt
         pip3 install -r requirements-starlette.txt
@@ -122,9 +126,8 @@ jobs:
         pip3 install -r requirements-provider.txt
         pip3 install -r requirements-manager.txt
         pip3 install -r requirements-django.txt
-        python3 setup.py install
+        pip3 install .
         pip3 install --global-option=build_ext --global-option="-I/usr/include/gdal" GDAL==`gdal-config --version`
-        #pip3 install --upgrade rasterio==1.1.8
     - name: setup test data ⚙️
       run: |
         python3 tests/load_es_data.py tests/data/ne_110m_populated_places_simple.geojson geonameid
@@ -137,49 +140,20 @@ jobs:
         mysql -h 127.0.0.1 -P 3306 -u root -p'mysql' test_geo_app < tests/data/mysql_data.sql
         docker ps
         python3 tests/load_oracle_data.py
-    - name: run unit tests ⚙️
+    - name: run API tests ⚙️
+      run: pytest tests/api --ignore-glob='*_live.py'
+    - name: run Formatter tests ⚙️
+      run: pytest tests/formatter
+    - name: run Provider tests ⚙️
       env:
         POSTGRESQL_PASSWORD: ${{ secrets.DatabasePassword || 'postgres' }}
-      run: |
-        pytest tests/api --ignore=tests/api/test_admin_live.py
-        pytest tests/test_api_ogr_provider.py
-        pytest tests/test_base_provider.py
-        pytest tests/test_config.py
-        pytest tests/test_csv__formatter.py
-        pytest tests/test_csv__provider.py
-        pytest tests/test_django.py
-        pytest tests/test_elasticsearch__provider.py
-        pytest tests/test_opensearch__provider.py
-        pytest tests/test_esri_provider.py
-        pytest tests/test_filesystem_provider.py
-        pytest tests/test_geojson_provider.py
-        pytest tests/test_linked_data.py
-        pytest tests/test_mongo_provider.py
-        pytest tests/test_ogr_csv_provider.py
-        pytest tests/test_ogr_esrijson_provider.py
-        pytest tests/test_ogr_gpkg_provider.py
-        pytest tests/test_ogr_shapefile_provider.py
-        pytest tests/test_ogr_sqlite_provider.py
-        pytest tests/test_ogr_wfs_provider.py
-        pytest tests/test_postgresql_manager.py
-        # pytest tests/test_ogr_wfs_provider_live.py  # NOTE: these are skipped in the file but listed here for completeness
-        pytest tests/test_openapi.py
-        pytest tests/test_oracle_provider.py
-        pytest tests/test_parquet_provider.py
-        pytest tests/test_postgresql_provider.py
-        pytest tests/test_postgresql_mvt_provider.py
-        pytest tests/test_mysql_provider.py
-        pytest tests/test_rasterio_provider.py
-        pytest tests/test_sensorthings_edr_provider.py 
-        pytest tests/test_sensorthings_provider.py
-        pytest tests/test_socrata_provider.py
-        # pytest tests/test_socrata_provider_live.py.py  # NOTE: these are skipped in the file but listed here for completeness
-        pytest tests/test_sqlite_geopackage_provider.py
-        pytest tests/test_tinydb_catalogue_provider.py
-        pytest tests/test_tinydb_manager_for_parallel_requests.py
-        pytest tests/test_util.py
-        pytest tests/test_xarray_netcdf_provider.py
-        pytest tests/test_xarray_zarr_provider.py
+      run: pytest tests/provider --ignore-glob='*_live.py'
+    - name: run Manager tests ⚙️
+      env:
+        POSTGRESQL_PASSWORD: ${{ secrets.DatabasePassword || 'postgres' }}
+      run: pytest tests/manager
+    - name: run other tests ⚙️
+      run: pytest tests/other --ignore-glob='*_live.py'
     - name: failed tests 🚩
       if: ${{ failure() }}
       run: |
