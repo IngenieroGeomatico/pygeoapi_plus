@@ -34,10 +34,10 @@ reference documentation on all aspects of the project.
    configuration
    administration
    running
-   running-with-docker
+   docker
    tour
    openapi
-   data-publishing/index
+   publishing/index
    transactions
    admin-api
    security
