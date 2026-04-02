@@ -37,44 +37,45 @@ from pygeoapi.provider.sql import MySQLProvider
 PASSWORD = os.environ.get('MYSQL_PASSWORD', 'mysql')
 
 
-"""
-For local testing, a MySQL database can be spun up with docker
-compose as follows:
-
-services:
-
-    mysql:
-        image: mysql:8
-        ports:
-        - 3306:3306
-        environment:
-            MYSQL_ROOT_PASSWORD: mysql
-            MYSQL_USER: pygeoapi
-            MYSQL_PASSWORD: mysql
-            MYSQL_DATABASE: test_geo_app
-        volumes:
-        - ./tests/data/mysql_data.sql:/docker-entrypoint-initdb.d/init.sql:ro
-"""
+# Testing local MySQL with docker:
+'''
+docker run --name mysql-test \
+    -e MYSQL_ROOT_PASSWORD=mysql \
+    -e MYSQL_USER=pygeoapi \
+    -e MYSQL_PASSWORD=mysql \
+    -e MYSQL_DATABASE=test_geo_app \
+    -p 3306:3306 \
+    -v ./tests/data/mysql_data.sql:/docker-entrypoint-initdb.d/init.sql:ro \
+    -d mysql:8
+'''
 
 
-@pytest.fixture()
-def config():
-    return {
+@pytest.fixture(params=['default', 'connection_string'])
+def config(request):
+    config_ = {
         'name': 'MySQL',
         'type': 'feature',
-        'data': {
+        'options': {'connect_timeout': 10},
+        'id_field': 'locationID',
+        'table': 'location',
+        'geom_field': 'locationCoordinates'
+    }
+    if request.param == 'default':
+        config_['data'] = {
             'host': 'localhost',
             'dbname': 'test_geo_app',
             'user': 'root',
             'port': 3306,
             'password': PASSWORD,
             'search_path': ['test_geo_app']
-        },
-        'options': {'connect_timeout': 10},
-        'id_field': 'locationID',
-        'table': 'location',
-        'geom_field': 'locationCoordinates'
-    }
+        }
+    elif request.param == 'connection_string':
+        config_['data'] = (
+            f'mysql+pymysql://root:{PASSWORD}@localhost:3306/test_geo_app'
+        )
+        config_['options']['search_path'] = ['test_geo_app']
+
+    return config_
 
 
 def test_valid_connection_options(config):
@@ -87,7 +88,8 @@ def test_valid_connection_options(config):
                 'keepalives',
                 'keepalives_idle',
                 'keepalives_count',
-                'keepalives_interval'
+                'keepalives_interval',
+                'search_path'
             ]
 
 
@@ -162,6 +164,19 @@ def test_query_skip_geometry(config):
     result = provider.query(skip_geometry=True)
     feature = result['features'][0]
     assert feature['geometry'] is None
+
+
+def test_get_with_injection(config):
+    """Testing query for injection attack string"""
+    p = MySQLProvider(config)
+    feature = p.get('1')
+    assert feature.get('type') == 'Feature'
+
+    with pytest.raises(ProviderItemNotFoundError):
+        p.get('1; DROP TABLE location;')
+
+    with pytest.raises(ProviderItemNotFoundError):
+        p.get('1<script>alert("We love pygeoapi")</script>')
 
 
 def test_get_not_existing_item_raise_exception(config):

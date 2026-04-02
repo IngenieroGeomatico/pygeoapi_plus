@@ -585,7 +585,7 @@ To publish a GeoParquet file (with a geometry column) the geopandas package is a
       - type: feature
         name: Parquet
         data: 
-          source: ./tests/data/parquet/random.parquet
+          source: ./tests/data/parquet/naive/random.parquet
         id_field: id
         time_field: time
         x_field:
@@ -595,10 +595,33 @@ To publish a GeoParquet file (with a geometry column) the geopandas package is a
           - minlat
           - maxlat
 
-For GeoParquet data, the `x_field` and `y_field` must be specified in the provider definition,
+For older versions of parquet data that don't comply to GeoParquet v1.1, the `x_field` and `y_field` must be specified in the provider definition,
 and they must be arrays of two column names that contain the x and y coordinates of the
 bounding box of each geometry. If the geometries in the data are all points, the `x_field` and `y_field`
 can be strings instead of arrays and refer to a single column each.
+
+.. code-block:: yaml 
+
+    providers:
+      - type: feature
+        name: Parquet
+        id_field: id
+        data: 
+          source:  ./tests/data/parquet/geoparquet1.1/nyc_subset_overture.parquet
+          batch_size: 10000
+          batch_readahead: 2
+
+
+For GeoParquet data which complies to spec version 1.1, all geometry metadata will be automatically
+detected. 
+
+Note that for any version of parquet, you may optionally specify ``batch_size`` and ``batch_readahead`` in the ``data`` section of the parquet provider config.
+``batch_size`` controls how many rows are fetched per batch. Large batch sizes speed up data processing, but add more I/O time like increased latency when fetching data from an object store, and . If not defined it will 
+default to 20,000 rows. 
+
+``batch_readahead`` controls how many batches are buffered in memory. If not specified it will default to 2. 
+Since OGC API Features payloads are often paginated and fairly small, it generally makes sense to specify a small number to avoid reading too many batches ahead of time, especially when fetching from an object store.
+
 
 .. _PostgreSQL:
 
@@ -622,6 +645,19 @@ Must have PostGIS installed.
              user: postgres
              password: postgres
              search_path: [osm, public]
+         id_field: osm_id
+         table: hotosm_bdi_waterways
+         geom_field: foo_geom
+         count: true # Optional; Default true; Enable/disable count for improved performance.
+
+This can be represented as a connection dictionary or as a connection string as follows:
+
+.. code-block:: yaml
+
+   providers:
+       - type: feature
+         name: PostgreSQL
+         data: postgresql://postgres:postgres@127.0.0.1:3010/test
          id_field: osm_id
          table: hotosm_bdi_waterways
          geom_field: foo_geom
@@ -662,6 +698,7 @@ These are optional and if not specified, the default from the engine will be use
          id_field: osm_id
          table: hotosm_bdi_waterways
          geom_field: foo_geom
+         count: true # Optional; Default true; Enable/disable count for improved performance.
 
 The PostgreSQL provider is also able to connect to Cloud SQL databases.
 
@@ -677,6 +714,7 @@ The PostgreSQL provider is also able to connect to Cloud SQL databases.
              password: postgres
          id_field: id
          table: states
+         count: true # Optional; Default true; Enable/disable count for improved performance.
 
 This is what a configuration for `Google Cloud SQL`_ connection looks like. The ``host``
 block contains the necessary socket connection information.

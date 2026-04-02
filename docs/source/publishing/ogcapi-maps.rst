@@ -113,6 +113,15 @@ required.  An optional style name can be defined via `options.style`.
                name: png
                mimetype: image/png
 
+.. note::
+  According to the `Standard <https://docs.ogc.org/is/20-058/20-058.html#_5df53b56-5468-4c9d-acac-6abfddd83ccf>`_, OGC API - Maps
+  supports a `crs` parameter, expressed as an uri. Currently, this provider supports WGS84 and Web Mercator; for a matter of convenience, they can be expressed in
+  a number of different ways, other than the uri format.
+
+  - `EPSG:4326`
+  - `EPSG:3857`
+  - `4326`
+  - `3857`
 
 Data visualization examples
 ---------------------------
@@ -135,6 +144,10 @@ Data visualization examples
 * map with bbox and bbox-crs
 
   * http://localhost:5000/collections/foo/map?bbox-crs=http%3A%2F%2Fwww.opengis.net%2Fdef%2Fcrs%2FEPSG%2F0%2F3857&bbox=4.022369384765626%2C50.690447870569436%2C4.681549072265626%2C51.00260125274477&width=800&height=600&transparent
+
+* map with vertical subset  (``extents.vertical`` must be set in resource level config)
+
+  * http://localhost:5000/collections/foo/map?bbox=-142,42,-52,84&subset=vertical(435)
 
 .. _`OGC API - Maps`: https://ogcapi.ogc.org/maps
 .. _`see website`: https://mapserver.org/mapscript/index.html

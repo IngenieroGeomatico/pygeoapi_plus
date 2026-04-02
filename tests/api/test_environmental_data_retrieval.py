@@ -5,7 +5,7 @@
 #          Colin Blackburn <colb@bgs.ac.uk>
 #          Bernhard Mallinger <bernhard.mallinger@eox.at>
 #
-# Copyright (c) 2025 Tom Kralidis
+# Copyright (c) 2026 Tom Kralidis
 # Copyright (c) 2022 John A Stevenson and Colin Blackburn
 #
 # Permission is hereby granted, free of charge, to any person
@@ -39,6 +39,23 @@ from pygeoapi.api import describe_collections
 from pygeoapi.api.environmental_data_retrieval import get_collection_edr_query
 
 from tests.util import mock_api_request
+
+
+def test_describe_collection_edr(config, api_):
+    req = mock_api_request()
+    rsp_headers, code, response = describe_collections(api_, req, 'icoads-sst')
+    collection = json.loads(response)
+    parameter_names = list(collection['parameter_names'].keys())
+    parameter_names.sort()
+    assert len(parameter_names) == 4
+    assert parameter_names == ['AIRT', 'SST', 'UWND', 'VWND']
+
+    sst = collection['parameter_names']['SST']
+    assert sst['id'] == 'SST'
+    assert sst['type'] == 'Parameter'
+    assert sst['observedProperty']['label']['en'] == 'SEA SURFACE TEMPERATURE'
+    assert sst['unit']['label']['en'] == 'SEA SURFACE TEMPERATURE'
+    assert sst['unit']['symbol']['value'] == 'Deg C'
 
 
 def test_get_collection_edr_query(config, api_):
@@ -81,6 +98,7 @@ def test_get_collection_edr_query(config, api_):
     rsp_headers, code, response = get_collection_edr_query(
         api_, req, 'icoads-sst', None, 'position')
     assert code == HTTPStatus.OK
+    assert rsp_headers['Content-Type'] == 'application/vnd.cov+json'
 
     data = json.loads(response)
 
@@ -252,3 +270,23 @@ def test_get_collection_edr_query(config, api_):
     rsp_headers, code, response = get_collection_edr_query(
         api_, req, 'usgs-prism', None, 'cube')
     assert code == HTTPStatus.OK
+
+
+def test_get_collection_edr_query_crs(config, api_):
+    # Invalid CRS query parameter (not a URI)
+    req = mock_api_request({'coords': 'POINT(11 11)', 'crs': '4326'})
+    rsp_headers, code, response = get_collection_edr_query(
+        api_, req, 'icoads-sst', None, 'position')
+    assert code == HTTPStatus.BAD_REQUEST
+
+    # Valid CRS parameter (default CRS)
+    req = mock_api_request({
+        'coords': 'POINT(11 11)',
+        'crs': 'http://www.opengis.net/def/crs/OGC/1.3/CRS84'
+    })
+    rsp_headers, code, response = get_collection_edr_query(
+        api_, req, 'icoads-sst', None, 'position')
+    assert code == HTTPStatus.OK
+    assert 'Content-Crs' in rsp_headers
+    expected_crs = '<http://www.opengis.net/def/crs/OGC/1.3/CRS84>'
+    assert rsp_headers['Content-Crs'] == expected_crs

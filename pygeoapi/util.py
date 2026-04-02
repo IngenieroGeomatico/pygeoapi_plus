@@ -2,7 +2,7 @@
 #
 # Authors: Tom Kralidis <tomkralidis@gmail.com>
 #
-# Copyright (c) 2025 Tom Kralidis
+# Copyright (c) 2026 Tom Kralidis
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -64,8 +64,8 @@ import yaml
 from pygeoapi import __version__
 from pygeoapi import l10n
 from pygeoapi.models import config as config_models
-from pygeoapi.provider.base import ProviderTypeError
-
+from pygeoapi.plugin import load_plugin, PLUGINS
+from pygeoapi.provider import get_provider_default
 
 LOGGER = logging.getLogger(__name__)
 
@@ -248,7 +248,7 @@ def str2bool(value: Union[bool, str]) -> bool:
 
 def to_json(dict_: dict, pretty: bool = False) -> str:
     """
-    Serialize dict to json
+    Serialize dict to JSON
 
     :param dict_: `dict` of JSON representation
     :param pretty: `bool` of whether to prettify JSON (default is `False`)
@@ -261,8 +261,15 @@ def to_json(dict_: dict, pretty: bool = False) -> str:
     else:
         indent = None
 
-    return json.dumps(dict_, default=json_serial, indent=indent,
-                      separators=(',', ':'))
+    LOGGER.debug('Dumping JSON')
+    json_dump = json.dumps(dict_, default=json_serial, indent=indent,
+                           separators=(',', ':'))
+
+    LOGGER.debug('Escaping < and >')
+    json_dump = json_dump.replace('<', '&lt;')
+    json_dump = json_dump.replace('>', '&gt;')
+
+    return json_dump
 
 
 def format_datetime(value: str, format_: str = DATETIME_FORMAT) -> str:
@@ -526,61 +533,6 @@ def filter_dict_by_key_value(dict_: dict, key: str, value: str) -> dict:
     return {k: v for (k, v) in dict_.items() if v[key] == value}
 
 
-def filter_providers_by_type(providers: list, type: str) -> dict:
-    """
-    helper function to filter a list of providers by type
-
-    :param providers: ``list``
-    :param type: str
-
-    :returns: filtered ``dict`` provider
-    """
-
-    providers_ = {provider['type']: provider for provider in providers}
-    return providers_.get(type)
-
-
-def get_provider_by_type(providers: list, provider_type: str) -> dict:
-    """
-    helper function to load a provider by a provider type
-
-    :param providers: ``list`` of providers
-    :param provider_type: type of provider (e.g. feature)
-
-    :returns: provider based on type
-    """
-
-    LOGGER.debug(f'Searching for provider type {provider_type}')
-    try:
-        p = (next(d for i, d in enumerate(providers)
-                  if d['type'] == provider_type))
-    except (RuntimeError, StopIteration):
-        raise ProviderTypeError('Invalid provider type requested')
-
-    return p
-
-
-def get_provider_default(providers: list) -> dict:
-    """
-    helper function to get a resource's default provider
-
-    :param providers: ``list`` of providers
-
-    :returns: filtered ``dict``
-    """
-
-    try:
-        default = (next(d for i, d in enumerate(providers) if 'default' in d
-                   and d['default']))
-        LOGGER.debug('found default provider type')
-    except StopIteration:
-        LOGGER.debug('no default provider type.  Returning first provider')
-        default = providers[0]
-
-    LOGGER.debug(f"Default provider: {default['type']}")
-    return default
-
-
 class ProcessExecutionMode(Enum):
     sync_execute = 'sync-execute'
     async_execute = 'async-execute'
@@ -764,3 +716,42 @@ def get_choice_from_headers(headers: dict,
 
     # Return one or all choices
     return sorted_choices if all else sorted_choices[0]
+
+
+def get_dataset_formatters(dataset: dict) -> dict:
+    """
+    Helper function to derive all formatters for a collection
+
+    :param dataset: `dict` of dataset resource definition
+
+    :returns: `dict` of formatters
+    """
+
+    dataset_formatters = {}
+    provider_type = get_provider_default(dataset['providers'])['type']
+
+    for key, value in PLUGINS['formatter'].items():
+        # workaround to keep items-based collections supporting CSV
+        if provider_type not in ['feature', 'record']:
+            continue
+
+        df2 = load_plugin('formatter', {'name': key})
+        dataset_formatters[key] = df2
+
+    for df in dataset.get('formatters', []):
+        df2 = load_plugin('formatter', df)
+        dataset_formatters[df2.name] = df2
+
+    return dataset_formatters
+
+
+def remove_url_auth(url: str) -> str:
+    """
+    Provide a RFC1738 URL without embedded authentication
+    :param url: RFC1738 URL
+    :returns: RFC1738 URL without authentication
+    """
+
+    u = urlparse(url)
+    auth = f'{u.username}:{u.password}@'
+    return url.replace(auth, '')

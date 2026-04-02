@@ -7,7 +7,7 @@
 #          Colin Blackburn <colb@bgs.ac.uk>
 #          Ricardo Garcia Silva <ricardo.garcia.silva@geobeyond.it>
 #
-# Copyright (c) 2025 Tom Kralidis
+# Copyright (c) 2026 Tom Kralidis
 # Copyright (c) 2025 Francesco Bartoli
 # Copyright (c) 2022 John A Stevenson and Colin Blackburn
 # Copyright (c) 2023 Ricardo Garcia Silva
@@ -49,24 +49,25 @@ from pyproj.exceptions import CRSError
 
 from pygeoapi import l10n
 from pygeoapi.api import evaluate_limit
+from pygeoapi.api.pubsub import publish_message
 from pygeoapi.crs import (DEFAULT_CRS, DEFAULT_STORAGE_CRS,
                           create_crs_transform_spec, get_supported_crs_list,
                           modify_pygeofilter, transform_bbox,
                           set_content_crs_header)
+from pygeoapi.formats import F_JSON, FORMAT_TYPES, F_HTML, F_JSONLD
 from pygeoapi.formatter.base import FormatterSerializationError
 from pygeoapi.linked_data import geojson2jsonld
+from pygeoapi.openapi import get_oas_30_parameters
 from pygeoapi.plugin import load_plugin, PLUGINS
+from pygeoapi.provider import filter_providers_by_type, get_provider_by_type
 from pygeoapi.provider.base import (
-    ProviderGenericError, ProviderTypeError, SchemaType)
+    ProviderGenericError, ProviderItemNotFoundError,
+    ProviderTypeError, SchemaType)
 
-from pygeoapi.util import (filter_providers_by_type, to_json,
-                           filter_dict_by_key_value, str2bool,
-                           get_provider_by_type, render_j2_template)
+from pygeoapi.util import (to_json, filter_dict_by_key_value, str2bool,
+                           render_j2_template, get_dataset_formatters)
 
-from . import (
-    APIRequest, API, SYSTEM_LOCALE, F_JSON, FORMAT_TYPES, F_HTML, F_JSONLD,
-    validate_bbox, validate_datetime
-)
+from . import APIRequest, API, SYSTEM_LOCALE, validate_bbox, validate_datetime
 
 LOGGER = logging.getLogger(__name__)
 
@@ -241,9 +242,6 @@ def get_collection_items(
     :returns: tuple of headers, status code, content
     """
 
-    if not request.is_valid(PLUGINS['formatter'].keys()):
-        return api.get_format_exception(request)
-
     # Set Content-Language to system locale until provider locale
     # has been determined
     headers = request.get_response_headers(SYSTEM_LOCALE,
@@ -351,6 +349,20 @@ def get_collection_items(
         return api.get_exception(
             err.http_status_code, headers, request.format,
             err.ogc_exception_code, err.message)
+
+    LOGGER.debug('Validating requested format')
+    dataset_formatters = get_dataset_formatters(collections[dataset])
+
+    if dataset_formatters:
+        LOGGER.debug(f'Dataset formatters: {dataset_formatters}')
+        request._format = request._get_format(
+            request.get_request_headers(request.headers),
+            {v.f: v.mimetype for v in dataset_formatters.values()})
+
+        LOGGER.debug(f'Request format: {request.format}')
+
+    if not request.is_valid(dataset_formatters.keys()):
+        return api.get_format_exception(request)
 
     crs_transform_spec = None
     if provider_type == 'feature':
@@ -581,6 +593,14 @@ def get_collection_items(
         'href': f'{uri}?f={F_HTML}{serialized_query_params}'
     }])
 
+    for key, value in dataset_formatters.items():
+        content['links'].append({
+            'type': value.mimetype,
+            'rel': 'alternate',
+            'title': f'This document as {key}',
+            'href': f'{uri}?f={value.name}{serialized_query_params}'
+        })
+
     next_link = False
     prev_link = False
 
@@ -595,19 +615,26 @@ def get_collection_items(
         if offset > 0:
             prev_link = True
 
+    print(request.format)
     if prev_link:
         prev = max(0, offset - limit)
+        url = f'{uri}?offset={prev}{serialized_query_params}'
+        if request.format is not None:
+            url = f'{uri}?f={request.format}&offset={prev}{serialized_query_params}'  # noqa
+
         content['links'].append(
             {
                 'type': 'application/geo+json',
                 'rel': 'prev',
                 'title': l10n.translate('Items (prev)', request.locale),
-                'href': f'{uri}?offset={prev}{serialized_query_params}'
+                'href': url
             })
 
     if next_link:
         next_ = offset + limit
         next_href = f'{uri}?offset={next_}{serialized_query_params}'
+        if request.format is not None:
+            next_href = f'{uri}?f={request.format}&offset={next_}{serialized_query_params}'  # noqa
         content['links'].append(
             {
                 'type': 'application/geo+json',
@@ -656,9 +683,9 @@ def get_collection_items(
                                      'collections/items/index.html',
                                      content, request.locale)
         return headers, HTTPStatus.OK, content
-    elif request.format == 'csv':  # render
-        formatter = load_plugin('formatter',
-                                {'name': 'CSV', 'geom': True})
+    elif request.format in [df.f for df in dataset_formatters.values()]:
+        formatter = [v for v in dataset_formatters.values() if
+                     v.f == request.format][0]
 
         try:
             content = formatter.write(
@@ -677,13 +704,14 @@ def get_collection_items(
 
         headers['Content-Type'] = formatter.mimetype
 
-        if p.filename is None:
-            filename = f'{dataset}.csv'
-        else:
-            filename = f'{p.filename}'
+        if formatter.attachment:
+            if p.filename is None:
+                filename = f'{dataset}.{formatter.extension}'
+            else:
+                filename = f'{p.filename}'
 
-        cd = f'attachment; filename="{filename}"'
-        headers['Content-Disposition'] = cd
+            cd = f'attachment; filename="{filename}"'
+            headers['Content-Disposition'] = cd
 
         return headers, HTTPStatus.OK, content
 
@@ -720,6 +748,9 @@ def manage_collection_item(
 
     collections = filter_dict_by_key_value(api.config['resources'],
                                            'type', 'collection')
+
+    http_status = HTTPStatus.OK
+    payload = None
 
     if dataset not in collections.keys():
         msg = 'Collection not found'
@@ -766,7 +797,8 @@ def manage_collection_item(
     if action == 'create':
         LOGGER.debug('Creating item')
         try:
-            identifier = p.create(request.data)
+            payload = request.data
+            identifier = p.create(payload)
         except TypeError as err:
             msg = str(err)
             return api.get_exception(
@@ -779,12 +811,13 @@ def manage_collection_item(
 
         headers['Location'] = f'{api.get_collections_url()}/{dataset}/items/{identifier}'  # noqa
 
-        return headers, HTTPStatus.CREATED, ''
+        http_status = HTTPStatus.CREATED
 
     if action == 'update':
         LOGGER.debug('Updating item')
         try:
-            _ = p.update(identifier, request.data)
+            payload = request.data
+            _ = p.update(identifier, payload)
         except TypeError as err:
             msg = str(err)
             return api.get_exception(
@@ -795,10 +828,17 @@ def manage_collection_item(
                 err.http_status_code, headers, request.format,
                 err.ogc_exception_code, err.message)
 
-        return headers, HTTPStatus.NO_CONTENT, ''
+        http_status = HTTPStatus.NO_CONTENT
 
     if action == 'delete':
         LOGGER.debug('Deleting item')
+        try:
+            _ = p.get(identifier)
+        except ProviderItemNotFoundError as err:
+            return api.get_exception(
+                err.http_status_code, headers, request.format,
+                err.ogc_exception_code, err.message)
+
         try:
             _ = p.delete(identifier)
         except ProviderGenericError as err:
@@ -806,7 +846,14 @@ def manage_collection_item(
                 err.http_status_code, headers, request.format,
                 err.ogc_exception_code, err.message)
 
-        return headers, HTTPStatus.OK, ''
+        http_status = HTTPStatus.OK
+
+    if api.pubsub_client is not None:
+        LOGGER.debug('Publishing message')
+        publish_message(api.pubsub_client, api.base_url, action, dataset,
+                        identifier, payload)
+
+    return headers, http_status, ''
 
 
 def get_collection_item(api: API, request: APIRequest,
@@ -998,21 +1045,6 @@ def get_oas_30(cfg: dict, locale: str) -> tuple[list[dict[str, str]], dict[str, 
 
     from pygeoapi.openapi import OPENAPI_YAML, get_visible_collections
 
-    properties = {
-        'name': 'properties',
-        'in': 'query',
-        'description': 'The properties that should be included for each feature. The parameter value is a comma-separated list of property names.',  # noqa
-        'required': False,
-        'style': 'form',
-        'explode': False,
-        'schema': {
-            'type': 'array',
-            'items': {
-                'type': 'string'
-            }
-        }
-    }
-
     limit = {
         'name': 'limit',
         'in': 'query',
@@ -1067,14 +1099,20 @@ def get_oas_30(cfg: dict, locale: str) -> tuple[list[dict[str, str]], dict[str, 
             title = l10n.translate(v['title'], locale)
             description = l10n.translate(v['description'], locale)
 
-            coll_properties = deepcopy(properties)
+            oas_30_parameters = get_oas_30_parameters(cfg, locale)
 
+            coll_properties = deepcopy(oas_30_parameters)['properties']
             coll_properties['schema']['items']['enum'] = list(p.fields.keys())
 
             coll_limit = _derive_limit(
                 deepcopy(limit), cfg['server'].get('limits', {}),
                 v.get('limits', {})
             )
+
+            dataset_formatters = get_dataset_formatters(v)
+            coll_f_parameter = deepcopy(oas_30_parameters)['f']
+            for key, value in dataset_formatters.items():
+                coll_f_parameter['schema']['enum'].append(value.f)
 
             paths[items_path] = {
                 'get': {
@@ -1083,7 +1121,7 @@ def get_oas_30(cfg: dict, locale: str) -> tuple[list[dict[str, str]], dict[str, 
                     'tags': [k],
                     'operationId': f'get{k.capitalize()}Features',
                     'parameters': [
-                        {'$ref': '#/components/parameters/f'},
+                        coll_f_parameter,
                         {'$ref': '#/components/parameters/lang'},
                         {'$ref': '#/components/parameters/bbox'},
                         coll_limit,
