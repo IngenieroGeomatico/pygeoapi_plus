@@ -2,7 +2,7 @@
 #
 # Authors: Tom Kralidis <tomkralidis@gmail.com>
 #
-# Copyright (c) 2025 Tom Kralidis
+# Copyright (c) 2026 Tom Kralidis
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -329,3 +329,41 @@ def test_get_choice_from_headers():
                                         'accept') == 'application/ld+json'
     assert util.get_choice_from_headers(
         {'accept-language': 'en_US', 'accept': '*/*'}, 'accept') == '*/*'
+
+
+@pytest.mark.parametrize('url,allow_internal,result', [
+    ['http://127.0.0.1/test', False, False],
+    ['http://127.0.0.1/test', True, True],
+    ['http://192.168.0.12/test', False, False],
+    ['http://192.168.0.12/test', True, True],
+    ['http://169.254.0.11/test', False, False],
+    ['http://169.254.0.11/test', True, True],
+    ['http://0.0.0.0/test', True, True],
+    ['http://0.0.0.0/test', False, False],
+    ['http://localhost:5000/test', False, False],
+    ['http://localhost:5000/test', True, True],
+    ['https://pygeoapi.io', False, True],
+    ['https://pygeoapi.io', True, True]
+])
+def test_is_request_allowed(url, allow_internal, result):
+    assert util.is_request_allowed(url, allow_internal) is result
+
+
+@pytest.mark.parametrize('value,format_,result', [
+    ['2000-11-11T11:33:31Z', '%Y-%m-%dT%H:%M:%SZ', '2000-11-11T11:33:31Z'],
+    [datetime(2000, 11, 11, 11, 33, 31), '%Y-%m-%dT%H:%M:%SZ', '2000-11-11T11:33:31Z']  # noqa
+])
+def test_format_datetime(value, format_, result):
+    assert util.format_datetime(value, format_) == result
+
+
+@pytest.mark.parametrize('start,end,result', [
+    ['2000-11-11T11:33:31Z', None, '0:00:00'],
+    [datetime(2000, 11, 11, 11, 33, 31), None, '0:00:00'],
+    ['2000-11-11T11:33:31Z', '2000-11-11T11:34:33Z', '0:01:02'],
+    [datetime(2000, 11, 11, 11, 33, 31), datetime(2000, 11, 11, 11, 34, 33), '0:01:02'],  # noqa
+    [datetime(2000, 11, 11, 11, 33, 31), '2000-11-11T11:34:33Z', '0:01:02'],
+    ['2000-11-11T11:33:31Z', datetime(2000, 11, 11, 11, 34, 33), '0:01:02']
+])
+def test_format_duration(start, end, result):
+    assert util.format_duration(start, end) == result

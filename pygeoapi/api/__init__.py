@@ -944,7 +944,8 @@ def describe_collections(api: API, request: APIRequest,
 
     LOGGER.debug('Creating collections')
     for k, v in collections_dict.items():
-        if v.get('visibility', 'default') == 'hidden':
+        if v.get('visibility', 'default') == 'hidden' \
+                and dataset is None:
             LOGGER.debug(f'Skipping hidden layer: {k}')
             continue
 
@@ -1075,6 +1076,10 @@ def get_collection_schema(api: API, request: Union[APIRequest, Any],
         }
 
     for k, v in p.fields.items():
+        if p.properties:
+            if k not in p.properties:
+                continue
+
         schema['properties'][k] = v
         if v['type'] == 'float':
             schema['properties'][k]['type'] = 'number'

@@ -36,6 +36,7 @@ from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from enum import Enum
 from heapq import heappush
+import ipaddress
 import json
 import logging
 import mimetypes
@@ -43,6 +44,7 @@ import os
 import pathlib
 from pathlib import Path
 import re
+import socket
 from typing import Any, IO, Union, List, Optional
 from urllib.parse import urlparse
 from urllib.request import urlopen
@@ -272,21 +274,33 @@ def to_json(dict_: dict, pretty: bool = False) -> str:
     return json_dump
 
 
-def format_datetime(value: str, format_: str = DATETIME_FORMAT) -> str:
+def format_datetime(value: Union[str, datetime],
+                    format_: str = DATETIME_FORMAT) -> str:
     """
     Parse datetime as ISO 8601 string; re-present it in particular format
     for display in HTML
 
-    :param value: `str` of ISO datetime
+    :param value: `str` of ISO datetime or `datetime.datetime`
     :param format_: `str` of datetime format for strftime
 
     :returns: string
     """
 
-    if not isinstance(value, str) or not value.strip():
+    datetime_ = None
+
+    if any([
+       not isinstance(value, (str, datetime)),
+       isinstance(value, str) and not value.strip()
+       ]):
+        LOGGER.debug(f'Invalid datetime value: {value}')
         return ''
 
-    return dateutil.parser.isoparse(value).strftime(format_)
+    if isinstance(value, str):
+        datetime_ = dateutil.parser.isoparse(value).strftime(format_)
+    if isinstance(value, datetime):
+        datetime_ = value.strftime(format_)
+
+    return datetime_
 
 
 def get_current_datetime(tz: timezone = timezone.utc,
@@ -337,21 +351,45 @@ def human_size(nbytes: int) -> str:
     return f'{f}{suffixes[i]}'
 
 
-def format_duration(start: str, end: str = None) -> str:
+def format_duration(start: Union[str, datetime],
+                    end: Union[str, datetime] = None) -> str:
     """
     Parse a start and (optional) end datetime as ISO 8601 strings, calculate
     the difference, and return that duration as a string.
 
-    :param start: `str` of ISO datetime
-    :param end: `str` of ISO datetime, defaults to `start` for a 0 duration
+    :param start: `str` of ISO datetime or `datetime`
+    :param end: `str` of ISO datetime or `datetime`, defaults to `start`
+                for a 0 duration
 
     :returns: string
     """
 
-    if not isinstance(start, str) or not start.strip():
+    if any([
+       not isinstance(start, (str, datetime)),
+       isinstance(start, str) and not start.strip()
+       ]):
+        LOGGER.debug(f'Invalid datetime start: {start}')
         return ''
+
     end = end or start
-    duration = dateutil.parser.isoparse(end) - dateutil.parser.isoparse(start)
+
+    if isinstance(start, str):
+        start2 = dateutil.parser.isoparse(start)
+    if isinstance(start, datetime):
+        start2 = start
+
+    if isinstance(end, str):
+        end2 = dateutil.parser.isoparse(end)
+    if isinstance(end, datetime):
+        end2 = end
+
+    if start2.tzinfo is None:
+        start2 = start2.replace(tzinfo=timezone.utc)
+    if end2.tzinfo is None:
+        end2 = end2.replace(tzinfo=timezone.utc)
+
+    duration = end2 - start2
+
     return str(duration)
 
 
@@ -755,3 +793,30 @@ def remove_url_auth(url: str) -> str:
     u = urlparse(url)
     auth = f'{u.username}:{u.password}@'
     return url.replace(auth, '')
+
+
+def is_request_allowed(url: str, allow_internal: bool = False) -> bool:
+    """
+    Test whether an HTTP request is allowed to be executed
+
+    :param url: `str` of URL
+    :param allow_internal: `bool` of whether internal requests are
+                           allowed (default `False`)
+
+    :returns: `bool` of whether HTTP request execution is allowed
+    """
+
+    is_allowed = False
+
+    u = urlparse(url)
+
+    ip = socket.gethostbyname(u.hostname)
+
+    is_private = ipaddress.ip_address(ip).is_private
+
+    if not is_private:
+        is_allowed = True
+    if is_private and allow_internal:
+        is_allowed = True
+
+    return is_allowed

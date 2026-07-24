@@ -16,34 +16,42 @@ parameters.
 
 
 .. csv-table::
-   :header: Provider, property filters/display, resulttype, bbox, datetime, sortby, skipGeometry, domains, CQL, transactions, crs
+   :header: Provider, property filters/display, resulttype hits/count, bbox, datetime, sortby, skipGeometry, domains, CQL, transactions, crs
    :align: left
 
-   `CSV`_,✅/✅,results/hits,✅,❌,❌,✅,❌,❌,❌,✅
-   `Elasticsearch`_,✅/✅,results/hits,✅,✅,✅,✅,✅,✅,✅,✅
-   `ERDDAP Tabledap Service`_,❌/❌,results/hits,✅,✅,❌,❌,❌,❌,❌,✅
-   `ESRI Feature Service`_,✅/✅,results/hits,✅,✅,✅,✅,❌,❌,❌,✅
-   `GeoJSON`_,✅/✅,results/hits,✅,❌,❌,✅,❌,❌,❌,✅
-   `MongoDB`_,✅/❌,results,✅,✅,✅,✅,❌,❌,❌,✅
-   `MySQL`_,✅/✅,results/hits,✅,✅,✅,✅,❌,✅,✅,✅
-   `OGR`_,✅/❌,results/hits,✅,❌,❌,✅,❌,❌,❌,✅
-   `OpenSearch`_,✅/✅,results/hits,✅,✅,✅,✅,❌,✅,✅,✅
-   `Oracle`_,✅/✅,results/hits,✅,❌,✅,✅,❌,❌,❌,✅
-   `Parquet`_,✅/✅,results/hits,✅,✅,❌,✅,❌,❌,❌,✅
-   `PostgreSQL`_,✅/✅,results/hits,✅,✅,✅,✅,❌,✅,✅,✅
-   `SQLiteGPKG`_,✅/❌,results/hits,✅,❌,❌,✅,❌,❌,❌,✅
-   `SensorThings API`_,✅/✅,results/hits,✅,✅,✅,✅,❌,❌,✅,✅
-   `Socrata`_,✅/✅,results/hits,✅,✅,✅,✅,❌,❌,❌,✅
-   `TinyDB`_,✅/✅,results/hits,✅,✅,✅,✅,✅,❌,✅,✅
+   `CSV`_,✅/✅,✅/✅,✅,❌,❌,✅,❌,❌,❌,✅
+   `Elasticsearch`_,✅/✅,✅/❌,✅,✅,✅,✅,✅,✅,✅,✅
+   `ERDDAP Tabledap Service`_,❌/❌,❌/❌,✅,✅,❌,❌,❌,❌,❌,✅
+   `ESRI Feature Service`_,✅/✅,✅/✅,✅,✅,✅,✅,❌,❌,❌,✅
+   `GeoJSON`_,✅/✅,✅/✅,✅,❌,❌,✅,❌,❌,❌,✅
+   `MongoDB`_,✅/❌,✅/✅,✅,✅,✅,✅,❌,❌,❌,✅
+   `MySQL`_,✅/✅,✅/✅,✅,✅,✅,✅,❌,✅,✅,✅
+   `OGR`_,✅/❌,✅/❌,✅,❌,❌,✅,❌,❌,❌,✅
+   `OpenSearch`_,✅/✅,✅/❌,✅,✅,✅,✅,❌,✅,✅,✅
+   `Oracle`_,✅/✅,✅/✅,✅,❌,✅,✅,❌,❌,❌,✅
+   `Parquet`_,✅/✅,✅/❌,✅,✅,❌,✅,❌,❌,❌,✅
+   `PostgreSQL`_,✅/✅,✅/✅,✅,✅,✅,✅,❌,✅,✅,✅
+   `SQLiteGPKG`_,✅/❌,✅/✅,✅,❌,❌,✅,❌,❌,❌,✅
+   `SensorThings API`_,✅/✅,✅/❌,✅,✅,✅,✅,❌,❌,✅,✅
+   `Socrata`_,✅/✅,✅/✅,✅,✅,✅,✅,❌,❌,❌,✅
+   `TinyDB`_,✅/✅,✅/✅,✅,✅,✅,✅,✅,❌,✅,✅
 
 .. note::
    For more information on CRS transformations, see :ref:`crs`.
 
 
+.. note::
+   Providers that support the query parameter ``resulttype=hits`` will also
+   include ``numberMatched`` in the default ``resulttype=results`` response.
+   Providers that support the configuration option ``count: false`` will 
+   not include the ``numberMatched`` property in the ``results`` response.
+
 Connection examples
 -------------------
 
 Below are specific connection examples based on supported providers.
+
+.. _csv:
 
 CSV
 ^^^
@@ -107,7 +115,7 @@ To publish an Elasticsearch index, the following are required in your index:
 The ES provider also has the support for the CQL queries as indicated in the table above.
 
 .. seealso::
-  :ref:`cql` for more details on how to use Common Query Language (CQL) to filter the collection with specific queries.
+  :ref:`cql2` for more details on how to use Common Query Language (CQL) to filter the collection with specific queries.
 
 .. _ERDDAP Tabledap Service:
 
@@ -284,7 +292,7 @@ These are optional and if not specified, the default from the engine will be use
 This provider has support for the CQL queries as indicated in the Provider table above.
 
 .. seealso::
-  :ref:`cql` for more details on how to use Common Query Language (CQL) to filter the collection with specific queries.
+  :ref:`cql2` for more details on how to use Common Query Language (CQL) to filter the collection with specific queries.
 
 
 OGR
@@ -424,7 +432,7 @@ To publish an OpenSearch index, the following are required in your index:
 The OpenSearch provider also has the support for the CQL queries as indicated in the table above.
 
 .. seealso::
-  :ref:`cql` for more details on how to use Common Query Language (CQL) to filter the collection with specific queries.
+  :ref:`cql2` for more details on how to use Common Query Language (CQL) to filter the collection with specific queries.
 
 .. _Oracle:
 
@@ -695,10 +703,26 @@ These are optional and if not specified, the default from the engine will be use
              # Number of seconds after which a TCP keepalive message that is not
              # acknowledged by the server should be retransmitted.
              keepalives_interval: 1
+             # SQLAlchemy connection-pool tuning (optional). Defaults match
+             # SQLAlchemy's QueuePool and preserve previous behaviour.
+             # Persistent connections held open per worker process.
+             pool_size: 5
+             # Extra short-lived connections allowed above pool_size.
+             max_overflow: 10
+             # Recreate connections older than this many seconds. -1 (the
+             # default) never recycles; set a finite value (e.g. 300) so
+             # pooled connections cannot sit IDLE on the server indefinitely.
+             pool_recycle: -1
+             # Seconds to wait for a connection from the pool before erroring.
+             pool_timeout: 30
+             # Test connections with a lightweight ping before use.
+             pool_pre_ping: true
          id_field: osm_id
          table: hotosm_bdi_waterways
          geom_field: foo_geom
          count: true # Optional; Default true; Enable/disable count for improved performance.
+
+`get_engine()` is cached per worker process, so providers that share the same database connection should use identical pool options to keep sharing a single engine; differing pool options intentionally create separate engines.
 
 The PostgreSQL provider is also able to connect to Cloud SQL databases.
 
@@ -722,7 +746,7 @@ block contains the necessary socket connection information.
 This provider has support for the CQL queries as indicated in the Provider table above.
 
 .. seealso::
-  :ref:`cql` for more details on how to use Common Query Language (CQL) to filter the collection with specific queries.
+  :ref:`cql2` for more details on how to use Common Query Language (CQL) to filter the collection with specific queries.
 
 SQLiteGPKG
 ^^^^^^^^^^
@@ -844,6 +868,36 @@ To publish a TinyDB (`see website <https://tinydb.readthedocs.io>`_) index, the 
          time_field: datetimefield
 
 .. _including-extra-query-parameters:
+
+Formatters
+----------
+
+GeoJSON is the default format provided by feature providers.  Additional formats can
+be added to configuration using one of the pygeoapi core formatters or by building a
+custom formatter plugin.
+
+.. note::
+   See the :ref:`plugin documentation <example-custom-pygeoapi-formatter>` for more
+   information on custom formatter plugins.
+
+.. csv-table::
+   :header: Formatter, format parameter value
+   :align: left
+
+   :ref:`CSV <csv-formatter-features>`,``f=csv``
+
+.. _csv-formatter-features:
+
+CSV
+^^^
+
+.. code-block:: yaml
+
+   formatters:
+       - name: CSV  # propagated by .../items?f=csv
+         geom: False  # whether to include geometry (default=False)
+         attachment: True  # whether to provide as an attachment (default=False)
+
 
 Including extra query parameters
 --------------------------------

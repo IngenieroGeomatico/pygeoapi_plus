@@ -57,7 +57,7 @@ import pytest
 import pyproj
 from shapely.geometry import shape as geojson_to_geom
 
-from pygeofilter.parsers.ecql import parse
+from pygeofilter.parsers.cql2_text import parse
 
 from pygeoapi.api import API
 from pygeoapi.api.itemtypes import (
@@ -246,6 +246,20 @@ def test_query_with_property_filter(config):
     assert feature_collection['numberReturned'] == 50
 
 
+def test_no_count(config):
+    """Test query with count disabled"""
+    p = PostgreSQLProvider(config)
+    results = p.query()
+    assert results['numberMatched'] == 14776
+    assert results['numberReturned'] == 10
+
+    config['count'] = False
+    p = PostgreSQLProvider(config)
+    results = p.query()
+    assert 'numberMatched' not in results
+    assert results['numberReturned'] == 10
+
+
 def test_query_with_paging(config):
     """Test query valid features with paging"""
     p = PostgreSQLProvider(config)
@@ -396,7 +410,7 @@ def test_get_not_existing_item_raise_exception(config):
          80835475, 80835478, 80835483, 80835486]),
     ("osm_id BETWEEN 80800000 AND 80900000 AND waterway = 'stream'",
         [80835470]),
-    ("osm_id BETWEEN 80800000 AND 80900000 AND waterway ILIKE 'sTrEam'",
+    ("osm_id BETWEEN 80800000 AND 80900000 AND CASEI(waterway) LIKE CASEI('sTrEam')",  # noqa
         [80835470]),
     ("osm_id BETWEEN 80800000 AND 80900000 AND waterway LIKE 's%'",
         [80835470]),
@@ -407,7 +421,7 @@ def test_get_not_existing_item_raise_exception(config):
     ("osm_id BETWEEN 80800000 AND 80900000 AND BBOX(foo_geom, 29, -2.8, 29.2, -2.9)",  # noqa
         [80827793, 80835470, 80835472, 80835483, 80835489]),
     ("osm_id BETWEEN 80800000 AND 80900000 AND "
-        "CROSSES(foo_geom,  LINESTRING(29.091 -2.731, 29.253 -2.845))",
+        "S_CROSSES(foo_geom,  LINESTRING(29.091 -2.731, 29.253 -2.845))",
         [80835470, 80835472, 80835489])
 ])
 def test_query_cql(config, cql, expected_ids):

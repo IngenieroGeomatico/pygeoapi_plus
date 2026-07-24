@@ -546,6 +546,10 @@ properties:
                                           type: boolean
                                           description: whether the resource is editable
                                           default: false
+                                      count:
+                                          type: boolean
+                                          description: whether to perform a count query for collection queries
+                                          default: true
                                       table:
                                           type: string
                                           description: table name for RDBMS-based providers
@@ -682,7 +686,11 @@ properties:
                                           For custom built plugins, use the import path (e.g. `mypackage.provider.MyProvider`)
                               required:
                                   - name
-                      required:
+                          allow_internal_requests:
+                              type: boolean
+                              description: whether to allow internal HTTP requests
+                              default: false
+                      requred:
                           - type
                           - processor
 definitions:
@@ -726,6 +734,21 @@ definitions:
                                         type: integer
                                     keepalives_interval:
                                         type: integer
+                                    pool_size:
+                                        type: integer
+                                        description: persistent connections held open per worker process
+                                    max_overflow:
+                                        type: integer
+                                        description: extra short-lived connections allowed above pool_size
+                                    pool_recycle:
+                                        type: integer
+                                        description: recreate connections older than this many seconds (-1 never recycles)
+                                    pool_timeout:
+                                        type: integer
+                                        description: seconds to wait for a connection from the pool before erroring
+                                    pool_pre_ping:
+                                        type: boolean
+                                        description: test connections with a lightweight ping before use
 required:
     - server
     - logging

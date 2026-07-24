@@ -128,20 +128,22 @@ def get_collection_edr_instances(api: API, request: APIRequest,
             'links': [{
                 'href': f'{uri}/instances/{instance}?f={F_JSON}',
                 'rel': request.get_linkrel(F_JSON),
+                'title': l10n.translate('Instance as JSON', request.locale),
                 'type': 'application/json'
             }, {
                 'href': f'{uri}/instances/{instance}?f={F_HTML}',
                 'rel': request.get_linkrel(F_HTML),
+                'title': l10n.translate('Instance as HTML', request.locale),
                 'type': 'text/html'
             }, {
                 'href': f'{uri}?f={F_HTML}',
                 'rel': 'collection',
-                'title': collections[dataset]['title'],
+                'title': l10n.translate(collections[dataset]['title'], request.locale),  # noqa
                 'type': 'text/html'
             }, {
                 'href': f'{uri}?f={F_JSON}',
                 'rel': 'collection',
-                'title': collections[dataset]['title'],
+                'title': l10n.translate(collections[dataset]['title'], request.locale),  # noqa
                 'type': 'application/json'
             }],
             'data_queries': {}
@@ -202,8 +204,8 @@ def get_collection_edr_instances(api: API, request: APIRequest,
 
         data['query_type'] = 'instances'
         data['query_path'] = uri
-        data['title'] = collections[dataset]['title']
-        data['description'] = collections[dataset]['description']
+        data['title'] = l10n.translate(collections[dataset]['title'], request.locale)  # noqa
+        data['description'] = l10n.translate(collections[dataset]['description'], request.locale)  # noqa
         data['keywords'] = collections[dataset]['keywords']
         data['collections_path'] = api.get_collections_url()
 
@@ -216,13 +218,13 @@ def get_collection_edr_instances(api: API, request: APIRequest,
 
         data['links'] = [{
             'rel': 'collection',
-            'title': collections[dataset]['title'],
-            'href': f"{data['dataset_path']}?f={F_JSON}",
+            'title': data['title'],
+            'href': f"{data['dataset_path']}?f={F_HTML}",
             'type': 'text/html'
         }, {
             'rel': 'collection',
-            'title': collections[dataset]['title'],
-            'href': f"{data['dataset_path']}?f={F_HTML}",
+            'title': data['title'],
+            'href': f"{data['dataset_path']}?f={F_JSON}",
             'type': 'application/json'
         }, {
             'type': 'application/json',
@@ -453,15 +455,16 @@ def get_collection_edr_query(api: API, request: APIRequest,
 
         data['query_type'] = query_type.capitalize()
         data['query_path'] = uri
+        data['title'] = l10n.translate(collections[dataset]['title'], request.locale)  # noqa
         data['dataset_path'] = '/'.join(uri.split('/')[:-1])
         data['collections_path'] = api.get_collections_url()
 
         data['links'] = [{
             'rel': 'collection',
-            'title': collections[dataset]['title'],
+            'title': data['title'],
             'href': data['dataset_path']
         }, {
-            'type': 'application/prs.coverage+json',
+            'type': 'application/vnd.cov+json',
             'rel': request.get_linkrel(F_COVERAGEJSON),
             'title': l10n.translate('This document as CoverageJSON', request.locale),  # noqa
             'href': f'{uri}?f={F_COVERAGEJSON}{serialized_query_params}'
@@ -483,6 +486,7 @@ def get_collection_edr_query(api: API, request: APIRequest,
             content = formatter.write(
                 data=data,
                 options={
+                    'content_crs': query_crs_uri,
                     'provider_def': get_provider_by_type(
                         collections[dataset]['providers'],
                         'edr')
@@ -494,8 +498,14 @@ def get_collection_edr_query(api: API, request: APIRequest,
                 HTTPStatus.INTERNAL_SERVER_ERROR, headers, request.format,
                 'NoApplicableCode', msg)
 
+        headers['Content-Type'] = formatter.mimetype
+
         if formatter.attachment:
-            filename = f'{dataset}.{formatter.extension}'
+            if p.filename is None:
+                filename = f'{dataset}.{formatter.extension}'
+            else:
+                filename = f'{p.filename}'
+
             cd = f'attachment; filename="{filename}"'
             headers['Content-Disposition'] = cd
 
@@ -597,7 +607,7 @@ def get_oas_30(cfg: dict, locale: str) -> tuple[list[dict[str, str]], dict[str, 
                             '200': {
                                 'description': 'Response',
                                 'content': {
-                                    'application/prs.coverage+json': {
+                                    'application/vnd.cov+json': {
                                         'schema': {
                                             '$ref': f"{OPENAPI_YAML['oaedr']}/schemas/coverageJSON.yaml"  # noqa
                                         }
@@ -681,7 +691,7 @@ def get_oas_30(cfg: dict, locale: str) -> tuple[list[dict[str, str]], dict[str, 
                             '200': {
                                 'description': 'Response',
                                 'content': {
-                                    'application/prs.coverage+json': {
+                                    'application/vnd.cov+json': {
                                         'schema': {
                                             '$ref': f"{OPENAPI_YAML['oaedr']}/schemas/coverageJSON.yaml"  # noqa
                                         }
