@@ -1,3 +1,0 @@
-Requirement already satisfied: numpy in ./env/lib/python3.12/site-packages (2.3.1)
-Requirement already satisfied: wheel in ./env/lib/python3.12/site-packages (0.45.1)
-Requirement already satisfied: setuptools in ./env/lib/python3.12/site-packages (80.9.0)
